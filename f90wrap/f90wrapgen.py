@@ -379,7 +379,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         self.write("implicit none")
 
         if node.mod_name is None:
-            self.write('external %s' % call_name)
+            self.write('external %s' % node.orig_name)
             if hasattr(node, 'orig_node') and isinstance(node.orig_node, ft.Function):
                 self.write('%s %s' % (node.orig_node.ret_val.type, node.name))
 
@@ -391,7 +391,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         self.write_arg_decl_lines(node)
         self.write_transfer_in_lines(node)
         self.write_init_lines(node)
-        self.write_call_lines(node, call_name)
+        self.write_call_lines(node, node.orig_name)
         self.write_transfer_out_lines(node)
         self.write_finalise_lines(node)
         self.dedent()
@@ -440,19 +440,19 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         else:
             this = 'dummy_this, '
 
-        self.write('subroutine %s%s__array__%s(%snd, dtype, dshape, dloc)' % (self.prefix, t.name, el.orig_name, this))
+        self.write('subroutine %s%s__array__%s(%snd, dtype, dshape, dloc)' % (self.prefix, t.orig_name, el.orig_name, this))
         self.indent()
 
         if isinstance(t, ft.Module):
-            self.write_uses_lines(t, {t.name: ['%s_%s => %s' % (t.name, el.name, el.orig_name)]})
+            self.write_uses_lines(t, {t.name: ['%s_%s => %s' % (t.orig_name, el.name, el.orig_name)]})
         else:
             self.write_uses_lines(t)
 
         self.write('implicit none')
         if isinstance(t, ft.Type):
-            self.write_type_lines(t.name)
+            self.write_type_lines(t.orig_name)
             self.write('integer, intent(in) :: this(%d)' % sizeof_fortran_t)
-            self.write('type(%s_ptr_type) :: this_ptr' % t.name)
+            self.write('type(%s_ptr_type) :: this_ptr' % t.orig_name)
         else:
             self.write('integer, intent(in) :: dummy_this(%d)' % sizeof_fortran_t)
 
@@ -473,7 +473,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
             self.write('this_ptr = transfer(this, this_ptr)')
             array_name = 'this_ptr%%p%%%s' % el.orig_name
         else:
-            array_name = '%s_%s' % (t.name, el.name)
+            array_name = '%s_%s' % (t.orig_name, el.name)
 
         if 'allocatable' in el.attributes:
             self.write('if (allocated(%s)) then' % array_name)
@@ -493,7 +493,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
             self.write('end if')
 
         self.dedent()
-        self.write('end subroutine %s%s__array__%s' % (self.prefix, t.name, el.orig_name))
+        self.write('end subroutine %s%s__array__%s' % (self.prefix, t.orig_name, el.orig_name))
         self.write()
 
     def _write_dt_array_wrapper(self, t, element, dims,
@@ -799,7 +799,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         localvar = self.prefix + el.orig_name
 
         self.write('subroutine %s%s__%s__%s(%s%s)' % (self.prefix, t.name,
-                                                      getset, el.orig_name, this, localvar))
+                                                      getset, el.name, this, localvar))
         self.indent()
 
         self.write_uses_lines(el, extra_uses)
@@ -863,5 +863,5 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
                     self.write('%s_%s = %s' % (t.name, el.orig_name, localvar))
         self.dedent()
         self.write('end subroutine %s%s__%s__%s' % (self.prefix, t.name, getset,
-                                                    el.orig_name))
+                                                    el.name))
         self.write()
