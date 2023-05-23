@@ -115,9 +115,9 @@ class F90WrapperGenerator(ft.FortranVisitor, cg.CodeGenerator):
 
         Subroutines and elements within each module are properly wrapped.
         """
-        log.info('F90WrapperGenerator visiting module %s' % node.name)
+        log.info('F90WrapperGenerator visiting module %s' % node.orig_name)
         self.code = []
-        self.write('! Module %s defined in file %s' % (node.name, node.filename))
+        self.write('! Module %s defined in file %s' % (node.orig_name, node.filename))
         self.write()
         self.generic_visit(node)
 
@@ -131,7 +131,7 @@ class F90WrapperGenerator(ft.FortranVisitor, cg.CodeGenerator):
                 if 'parameter' not in el.attributes:
                     self._write_sc_array_wrapper(node, el, dims[0], self.sizeof_fortran_t)
 
-        self.write('! End of module %s defined in file %s' % (node.name, node.filename))
+        self.write('! End of module %s defined in file %s' % (node.orig_name, node.filename))
         self.write()
         if len(self.code) > 0:
             f90_wrapper_name = '%s%s.f90' % (self.prefix, os.path.splitext(os.path.basename(node.filename))[0])
@@ -185,12 +185,12 @@ class F90WrapperGenerator(ft.FortranVisitor, cg.CodeGenerator):
                 self.write('use %s' % mod)
 
     def write_super_type_lines(self, ty):
-        self.write('type ' + ty.name)
+        self.write('type ' + ty.orig_name)
         self.indent()
         for el in ty.elements:
-            self.write(el.type + ''.join(', ' + attr for attr in el.attributes) + ' :: ' + el.name)
+            self.write(el.type + ''.join(', ' + attr for attr in el.attributes) + ' :: ' + el.orig_name)
         self.dedent()
-        self.write('end type ' + ty.name)
+        self.write('end type ' + ty.orig_name)
         self.write()
 
     def write_type_lines(self, tname, recursive=False):
@@ -224,7 +224,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         """
         for arg in node.arguments:
             if 'callback' in arg.attributes:
-                return 'external ' + arg.name
+                return 'external ' + arg.orig_name
 
             attributes = [attr for attr in arg.attributes if attr in ('optional', 'pointer', 'intent(in)',
                                                                       'intent(out)', 'intent(inout)') or
@@ -365,7 +365,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         """
         Write wrapper code necessary for a Fortran subroutine or function
         """
-        call_name = node.name
+        call_name = node.orig_name
         if hasattr(node, 'call_name'):
             call_name = node.call_name
         log.info(
@@ -381,7 +381,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         if node.mod_name is None:
             self.write('external %s' % node.orig_name)
             if hasattr(node, 'orig_node') and isinstance(node.orig_node, ft.Function):
-                self.write('%s %s' % (node.orig_node.ret_val.type, node.name))
+                self.write('%s %s' % (node.orig_node.ret_val.type, node.orig_name))
 
         self.write()
         for tname in node.types:
@@ -403,7 +403,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         """
         Properly wraps derived types, including derived-type arrays.
         """
-        log.info('F90WrapperGenerator visiting type %s' % node.name)
+        log.info('F90WrapperGenerator visiting type %s' % node.orig_name)
 
         for el in node.elements:
             dims = list(filter(lambda x: x.startswith('dimension'), el.attributes))
@@ -440,19 +440,19 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         else:
             this = 'dummy_this, '
 
-        self.write('subroutine %s%s__array__%s(%snd, dtype, dshape, dloc)' % (self.prefix, t.orig_name, el.orig_name, this))
+        self.write('subroutine %s%s__array__%s(%snd, dtype, dshape, dloc)' % (self.prefix, t.name, el.name, this))
         self.indent()
 
         if isinstance(t, ft.Module):
-            self.write_uses_lines(t, {t.name: ['%s_%s => %s' % (t.orig_name, el.name, el.orig_name)]})
+            self.write_uses_lines(t, {t.name: ['%s_%s => %s' % (t.name, el.orig_name, el.orig_name)]})
         else:
             self.write_uses_lines(t)
 
         self.write('implicit none')
         if isinstance(t, ft.Type):
-            self.write_type_lines(t.orig_name)
+            self.write_type_lines(t.name)
             self.write('integer, intent(in) :: this(%d)' % sizeof_fortran_t)
-            self.write('type(%s_ptr_type) :: this_ptr' % t.orig_name)
+            self.write('type(%s_ptr_type) :: this_ptr' % t.name)
         else:
             self.write('integer, intent(in) :: dummy_this(%d)' % sizeof_fortran_t)
 
@@ -473,7 +473,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
             self.write('this_ptr = transfer(this, this_ptr)')
             array_name = 'this_ptr%%p%%%s' % el.orig_name
         else:
-            array_name = '%s_%s' % (t.orig_name, el.name)
+            array_name = '%s_%s' % (t.name, el.orig_name)
 
         if 'allocatable' in el.attributes:
             self.write('if (allocated(%s)) then' % array_name)
@@ -493,7 +493,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
             self.write('end if')
 
         self.dedent()
-        self.write('end subroutine %s%s__array__%s' % (self.prefix, t.orig_name, el.orig_name))
+        self.write('end subroutine %s%s__array__%s' % (self.prefix, t.name, el.name))
         self.write()
 
     def _write_dt_array_wrapper(self, t, element, dims,
@@ -569,17 +569,17 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         else:
             this = 'dummy_this'
         safe_i = self.prefix + 'i'  # YANN: i could be in the "uses" clauses
-        # TODO: check if el.orig_name would be needed here instead of el.name
+        # TODO: check if el.orig_name would be needed here instead of el.orig_name
         self.write('subroutine %s%s__array_%sitem__%s(%s, %s, %s)' % (self.prefix, t.name,
                                                                       getset, el.name,
                                                                       this,
                                                                       safe_i,
-                                                                      el.name + 'item'))
+                                                                      el.orig_name + 'item'))
         self.indent()
         self.write()
         extra_uses = {}
         if isinstance(t, ft.Module):
-            extra_uses[t.name] = ['%s_%s => %s' % (t.name, el.name, el.name)]
+            extra_uses[t.name] = ['%s_%s => %s' % (t.name, el.orig_name, el.orig_name)]
         elif isinstance(t, ft.Type):
             if 'super-type' in t.doc:
                 # YANN: propagate parameter uses
@@ -613,15 +613,15 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         self.write('integer, intent(in) :: %s(%d)' % (this, sizeof_fortran_t))
         if isinstance(t, ft.Type):
             self.write('type(%s_ptr_type) :: this_ptr' % t.name)
-            array_name = 'this_ptr%%p%%%s' % el.name
+            array_name = 'this_ptr%%p%%%s' % el.orig_name
         else:
-            array_name = '%s_%s' % (t.name, el.name)
+            array_name = '%s_%s' % (t.name, el.orig_name)
         self.write('integer, intent(in) :: %s' % (safe_i))
-        self.write('integer, intent(%s) :: %s(%d)' % (inout, el.name + 'item', sizeof_fortran_t))
+        self.write('integer, intent(%s) :: %s(%d)' % (inout, el.orig_name + 'item', sizeof_fortran_t))
         if not same_type:
-            self.write('type(%s_ptr_type) :: %s_ptr' % (ft.strip_type(el.type), el.name))
+            self.write('type(%s_ptr_type) :: %s_ptr' % (ft.strip_type(el.type), el.orig_name))
         else:
-            self.write('type(%s_rec_ptr_type) :: %s_ptr' % (ft.strip_type(el.type),el.name))
+            self.write('type(%s_rec_ptr_type) :: %s_ptr' % (ft.strip_type(el.type),el.orig_name))
         self.write()
         if isinstance(t, ft.Type):
             self.write('this_ptr = transfer(%s, this_ptr)' % (this))
@@ -638,11 +638,11 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         self.indent()
 
         if getset == "get":
-            self.write('%s_ptr%%p => %s(%s)' % (el.name, array_name, safe_i))
-            self.write('%s = transfer(%s_ptr,%s)' % (el.name + 'item', el.name, el.name + 'item'))
+            self.write('%s_ptr%%p => %s(%s)' % (el.orig_name, array_name, safe_i))
+            self.write('%s = transfer(%s_ptr,%s)' % (el.orig_name + 'item', el.orig_name, el.orig_name + 'item'))
         else:
-            self.write('%s_ptr = transfer(%s,%s_ptr)' % (el.name, el.name + 'item', el.name))
-            self.write('%s(%s) = %s_ptr%%p' % (array_name, safe_i, el.name))
+            self.write('%s_ptr = transfer(%s,%s_ptr)' % (el.orig_name, el.orig_name + 'item', el.orig_name))
+            self.write('%s(%s) = %s_ptr%%p' % (array_name, safe_i, el.orig_name))
 
         self.dedent()
         self.write('endif')
@@ -686,7 +686,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
         self.write()
         extra_uses = {}
         if isinstance(t, ft.Module):
-            extra_uses[t.name] = ['%s_%s => %s' % (t.name, el.name, el.name)]
+            extra_uses[t.name] = ['%s_%s => %s' % (t.name, el.orig_name, el.orig_name)]
         elif isinstance(t, ft.Type):
             if 'super-type' in t.doc:
                 # YANN: propagate parameter uses
@@ -721,9 +721,9 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
             self.write('type(%s_ptr_type) :: this_ptr' % t.name)
             self.write()
             self.write('this_ptr = transfer(%s, this_ptr)' % (this))
-            array_name = 'this_ptr%%p%%%s' % el.name
+            array_name = 'this_ptr%%p%%%s' % el.orig_name
         else:
-            array_name = '%s_%s' % (t.name, el.name)
+            array_name = '%s_%s' % (t.name, el.orig_name)
 
         if 'allocatable' in el.attributes:
             self.write('if (allocated(%s)) then' % array_name)
@@ -762,7 +762,7 @@ end type %(typename)s_rec_ptr_type""" % {'typename': tname})
             String indicating whether to write a get routine, or a set routine.
         """
 
-        log.debug('writing %s wrapper for %s.%s' % (getset, t.name, el.name))
+        log.debug('writing %s wrapper for %s.%s' % (getset, t.name, el.orig_name))
 
         # getset and inout just change things simply from a get to a set routine.
         inout = "in"

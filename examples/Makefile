@@ -1,14 +1,11 @@
 EXAMPLES = arrayderivedtypes \
-	arrays \
 	arrays_fixed \
 	arrays_in_derived_types_issue50 \
-	cylinder \
-	derivedtypes \
 	elemental \
 	example2 \
 	extends \
-	interface \
 	issue105_function_definition_with_empty_lines \
+	keyword_renaming_issue160 \
 	issue32 \
 	mockderivetype \
 	mod_arg_clash \

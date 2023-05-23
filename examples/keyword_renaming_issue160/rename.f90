@@ -1,21 +1,32 @@
-module globals
+module global
 
     implicit none
     
-    INTEGER, PARAMETER :: abc=0
-    INTEGER, PARAMETER :: lambda=1
-    INTEGER :: with(9)
+    type class
+        integer :: x = 456
+    end type class
+
+    integer :: abc=0
+    integer, parameter :: lambda=1
+    integer :: with(9)
     
     contains
     
-end module globals
+    subroutine is(a)
+        implicit none
+        integer,intent(in) :: a
 
-subroutine in(a)
+        abc = abc + a
+        return 
+    end subroutine is
+end module global
+
+integer function in(a)
     implicit none
 
-    INTEGER, INTENT(INOUT) :: a
+    integer, intent(in) :: a
 
-    a = 123
+    in = a + 1
 
     return
-end subroutine in
+end function in

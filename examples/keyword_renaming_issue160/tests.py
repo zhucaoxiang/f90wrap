@@ -35,8 +35,21 @@ import keywordr_rename as lib
 
 
 def test():
-    assert lib.parameters.abc == 0
-    assert lib.parameters.lambda_ == 1
+    a = 3
+    # normal type
+    assert lib.global_.abc == 0
+    # rename keyword in normal types
+    assert lib.global_.lambda_ == 1
+    # rename keyword in derived types
+    y = lib.global_.Class_() 
+    assert y.x == 456
+    # rename keyword in array
+    assert len(lib.global_.with_) == 9
+    # rename keyword in subroutine
+    lib.global_.is_(a)
+    assert lib.global_.abc == a
+    # rename keyword in function
+    assert lib.in_(a) == a+1    
 
 
 if __name__ == '__main__':
