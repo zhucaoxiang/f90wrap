@@ -1,6 +1,9 @@
 EXAMPLES = arrayderivedtypes \
 	arrays_fixed \
 	arrays_in_derived_types_issue50 \
+	class_names \
+	cylinder \
+	derivedtypes \
 	elemental \
 	example2 \
 	extends \
@@ -14,7 +17,10 @@ EXAMPLES = arrayderivedtypes \
 	passbyreference \
 	strings \
 	subroutine_contains_issue101 \
-	type_bn
+	type_bn \
+	docstring \
+	type_check \
+	derivedtypes_procedure
 
 PYTHON = python
 

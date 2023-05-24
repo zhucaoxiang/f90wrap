@@ -136,7 +136,7 @@ class BaseTests(object):
         self.assert_(isinstance(dt, self.lib.datatypes.fixed_shape_arrays))
 
         self.assertEqual(dt.eta.dtype, np.int32)
-        eta = np.ones((10,4), dtype=np.int)
+        eta = np.ones((10,4), dtype=np.int32)
         np.testing.assert_array_equal(dt.eta, eta*10)
 
         # FIXME: Fails because dt.theta is not float32 (single precision)
@@ -263,6 +263,34 @@ class BaseTests(object):
         self.assertEqual(len(dt.omicron), n)
         self.assertEqual(len(dt.pi), n)
 
+    def test_copy_nested_alloc_arrays(self):
+
+        n = 10
+        dt = self.lib.datatypes.array_nested()
+        self.lib.datatypes.init_array_nested(dt, n)
+
+        dt.xi[0].beta = 1
+        dt.xi[0].delta = 1.0
+
+        dt2 = dt.copy()
+
+        self.assertEqual(dt2.xi[0].beta, 1)
+        self.assertEqual(dt2.xi[0].delta, 1.0)
+
+        dt.xi[0].beta = 2
+        dt.xi[0].delta = 2.0
+
+        self.assertEqual(dt.xi[0].beta, 2)
+        self.assertEqual(dt.xi[0].delta, 2.0)
+
+        self.lib.datatypes.destroy_array_nested(dt)
+
+        def get_xi():
+            return dt.xi[0]
+        self.assertRaises(RuntimeError, get_xi)
+
+        self.assertEqual(dt2.xi[0].beta, 1)
+        self.assertEqual(dt2.xi[0].delta, 1.0)
 
 
 if pkg:

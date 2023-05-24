@@ -22,7 +22,7 @@ please contact James Kermode <james.kermode@gmail.com>
 Dependencies
 ------------
 
- 1.  [Python](http://www.python.org) 3.6+ (Python 2.7 no longer supported)
+ 1.  [Python](http://www.python.org) 3.7+ (Python 2.7 no longer supported)
  2.  Recent version of [numpy](http://www.numpy.org) which includes `f2py`
  3.  Fortran compiler - tested with `gfortran` 4.6+ and recent `ifort` 12+
 
@@ -100,9 +100,10 @@ f90wrap has been used to wrap the following large-scale scientific
 applications:
 
  - [QUIP](http://libatoms.github.io/QUIP/) - molecular dynamics code
- - [CASTEP](http://www.castep.org) - electronic structure code
+ - [CASTEP](http://www.castep.org) - CasPyTep wrappers for electronic structure code
+ - [QEpy](http://qepy.rutgers.edu/index.html) - Python wrapper for Quantum Espresso electronic structure code
 
-See this [Jupyter notebook](https://github.com/jameskermode/f90wrap/blob/master/docs/tutorials/f90wrap-demo-feb-2020.ipynb) 
+See this [Jupyter notebook](https://github.com/jameskermode/f90wrap/blob/master/docs/tutorials/f90wrap-demo.ipynb) 
 from a recent seminar for more details.
 
 Usage
@@ -157,7 +158,7 @@ Notes
 - Scalar arguments without `intent` are treated as `intent(in)` by `f2py`. To have `inout` scalars, you need to call `f90wrap` with the `--default-to-inout` flag and declare the python variables as 1-length numpy arrays (`numpy.zeros(1)` for example).
 - Pointer arguments are not supported.
 - Arrays of derived types are currently not fully supported: a workaround is provided for 1D-fixed-length arrays, i.e. `type(a), dimension(b) :: c`. In this case, the super-type `Type_a_Xb_Array` will be created, and the array of types can be accessed through `c.items`. Note that dimension b can not be `:`, but can be a parameter.
-
+- Doxygen documentation in Fortran sources are parsed and given as docstring in corresponding python interfaces. Doxygen support is partial and keyword support is limited to `brief`, `details`, `file`, `author` and `copyright`.
 
 How f90wrap works
 -----------------
@@ -274,6 +275,7 @@ some of the options are used:
       --f90-max-line-length F90_MAX_LINE_LENGTH
                             Maximum length of lines in fortan files written.
                             Default: 120
+      --type-check          Check for type/shape matching of Python argument with the wrapped Fortran subroutine
          
 
 Author
@@ -293,3 +295,31 @@ Contributors
 - [yvesch](https://github.com/yvesch)
 - [Matthias Cuntz](https://github.com/mcuntz)
 - Balthasar Reuter [reuterbal](https://github.com/reuterbal)
+- Daniel Vanzo [danbeibei](https://github.com/danbeibei)
+
+
+Developer Notes
+---------------
+
+### Triggering the wheel build
+
+Wheels are built on push and pull requests to `master` using cibuildwheel
+with [this workflow](.github/workflows/build-wheels.yml).
+
+To make a release candidate create a tag with a suffix such as `-rc1` for the first attempt, 
+push to trigger the build:
+
+```bash
+git commit -m 'release v0.x.z.rc1'
+git tag v0.x.y.rc1
+git push --tags
+```
+
+If all goes well, the `.whl` files will show up as assets within a new GitHub
+release. The installation process can now be tested locally.
+
+### Release wheels to PyPI
+
+Once everything works correctly, make a full release (i.e. create a tag named
+just `v0.x.y` without the `-rc1` suffix). This will trigger the upload of wheels
+and source distribution to PyPI.

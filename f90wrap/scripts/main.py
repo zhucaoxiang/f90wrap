@@ -72,10 +72,11 @@ def main(argv=None):
     else:
         sys.argv.extend(argv)
 
-    program_name = os.path.basename(sys.argv[0])
+    program_name = 'f90wrap'
     program_version = "v%s" % __version__
     program_version_message = '%%(prog)s %s' % program_version
-    program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
+    # program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
+    program_shortdesc = 'f90wrap: F90 to Python interface generator with derived type support'
     program_license = '''%s
 
    Copyright James Kermode 2011-2017
@@ -157,6 +158,8 @@ USAGE
         parser.add_argument("--py-max-line-length", help="Maximum length of lines in python files written. Default: 80")
         parser.add_argument("--f90-max-line-length", help="Maximum length of lines in fortan files written. "
                                                           "Default: 120")
+        parser.add_argument('--type-check', action='store_true', default=False,
+                            help="Check for type/shape matching of Python argument with the wrapped Fortran subroutine")
 
         args = parser.parse_args()
 
@@ -383,7 +386,8 @@ USAGE
                                       init_file=args.init_file,
                                       py_mod_names=py_mod_names,
                                       class_names=class_names,
-                                      max_length=py_max_line_length).visit(py_tree)
+                                      max_length=py_max_line_length,
+                                      type_check=type_check).visit(py_tree)
         fwrap.F90WrapperGenerator(prefix, fsize, string_lengths,
                                   abort_func, kind_map, types, default_to_inout,
                                   max_length=f90_max_line_length).visit(f90_tree)

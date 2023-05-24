@@ -26,6 +26,7 @@ import logging
 import re
 
 from f90wrap.transform import ArrayDimensionConverter
+from f90wrap.transform import shorten_long_name
 from f90wrap import fortran as ft
 from f90wrap import codegen as cg
 
@@ -118,7 +119,8 @@ def format_doc_string(node):
             if i == 0:
                 doc.append("Parameters")
                 doc.append("----------")
-            doc.append("%s : %s" % (arg.name, pytype))
+            arg_doc = "%s : %s, %s" % (arg.name, pytype, arg.doxygen)
+            doc.append(arg_doc.strip(', '))
             if arg.doc:
                 for d in arg.doc:
                     doc.append("\t%s" % d)
@@ -131,7 +133,8 @@ def format_doc_string(node):
                     doc.append("")
                     doc.append("Returns")
                     doc.append("-------")
-                doc.append("%s : %s" % (arg.name, pytype))
+                arg_doc = "%s : %s, %s" % (arg.name, pytype, arg.doxygen)
+                doc.append(arg_doc.strip(', '))
                 if arg.doc:
                     for d in arg.doc:
                         doc.append("\t%s" % d)
@@ -152,7 +155,8 @@ def format_doc_string(node):
 class PythonWrapperGenerator(ft.FortranVisitor, cg.CodeGenerator):
     def __init__(self, prefix, mod_name, types, f90_mod_name=None,
                  make_package=False, kind_map=None, init_file=None,
-                 py_mod_names=None, class_names=None, max_length=None):
+                 py_mod_names=None, class_names=None, max_length=None,
+                 type_check=False):
         if max_length is None:
             max_length = 80
         cg.CodeGenerator.__init__(self, indent=' ' * 4,
@@ -174,11 +178,13 @@ class PythonWrapperGenerator(ft.FortranVisitor, cg.CodeGenerator):
             kind_map = {}
         self.kind_map = kind_map
         self.init_file = init_file
+        self.type_check = type_check
 
     def write_imports(self, insert=0):
         default_imports = [(self.f90_mod_name, None),
                            ('f90wrap.runtime', None),
-                           ('logging', None)]
+                           ('logging', None),
+                           ('numpy', None)]
         imp_lines = ['from __future__ import print_function, absolute_import, division']
         for (mod, symbol) in default_imports + list(self.imports):
             if symbol is None:
@@ -396,7 +402,8 @@ except ValueError:
             self.write_destructor(node)
         else:
             dct = dict(func_name=node.name,
-                       method_name=hasattr(node, 'method_name') and node.method_name or node.name,
+                       method_name= (hasattr(node, 'binding_name') and node.binding_name) or
+                           (hasattr(node, 'method_name') and node.method_name) or node.name,
                        prefix=self.prefix,
                        mod_name=self.f90_mod_name,
                        py_arg_names=', '.join([arg.py_name + py_arg_value(arg) for arg in node.arguments]),
@@ -413,6 +420,10 @@ except ValueError:
             self.write("def %(method_name)s(%(py_arg_names)s):" % dct)
             self.indent()
             self.write(format_doc_string(node))
+
+            if self.type_check:
+                self.write_type_checks(node)
+
             for arg in node.arguments:
                 if 'optional' in arg.attributes and '._handle' in arg.py_value:
                     dct['f90_arg_names'] = dct['f90_arg_names'].replace(arg.py_value,
@@ -485,6 +496,28 @@ except ValueError:
         self.write('continue')
         self.dedent()
         self.dedent()
+        self.write()
+
+        if self.type_check:
+            self.write('argTypes=[]')
+            self.write('for arg in args:')
+            self.indent()
+            self.write('try:')
+            self.indent()
+            self.write('argTypes.append("%s: dims \'%s\', type \'%s\'"%(str(type(arg)),'
+                        'arg.ndim, arg.dtype))')
+            self.dedent()
+            self.write('except AttributeError:')
+            self.indent()
+            self.write('argTypes.append(str(type(arg)))')
+            self.dedent()
+            self.dedent()
+
+            self.write('raise TypeError("Not able to call a version of "')
+            self.indent()
+            self.write('"\'%(intf_name)s\' compatible with the provided args:"' % dct)
+            self.write('"\\n%s\\n"%"\\n".join(argTypes))')
+            self.dedent()
         self.dedent()
         self.write()
 
@@ -556,10 +589,12 @@ except ValueError:
             if dct['el_name_set'] in procs:
                 dct['el_name_set'] += '_'
 
+        dct['subroutine_name'] = shorten_long_name('%(prefix)s%(type_name)s__get__%(el_name)s' % dct)
+
         self.write('def %(el_name_get)s(%(self)s):' % dct)
         self.indent()
         self.write(format_doc_string(el))
-        self.write('return %(mod_name)s.%(prefix)s%(type_name)s__get__%(el_name)s(%(handle)s)' % dct)
+        self.write('return %(mod_name)s.%(subroutine_name)s(%(handle)s)' % dct)
         self.dedent()
         self.write()
         if 'parameter' in el.attributes and isinstance(node, ft.Module) and self.make_package:
@@ -687,22 +722,29 @@ return %(el_name)s''' % dct)
             self.write('global %(el_name)s' % dct)
             node.array_initialisers.append(dct['el_name_get'])
 
+        dct['subroutine_name'] = shorten_long_name('%(prefix)s%(type_name)s__array__%(el_name)s' % dct)
+
         self.write("""array_ndim, array_type, array_shape, array_handle = \
-    %(mod_name)s.%(prefix)s%(type_name)s__array__%(el_name)s(%(handle)s)
+    %(mod_name)s.%(subroutine_name)s(%(handle)s)
 if array_handle in %(selfdot)s_arrays:
     %(el_name)s = %(selfdot)s_arrays[array_handle]
 else:
     %(el_name)s = f90wrap.runtime.get_array(f90wrap.runtime.sizeof_fortran_t,
                             %(handle)s,
-                            %(mod_name)s.%(prefix)s%(type_name)s__array__%(el_name)s)
+                            %(mod_name)s.%(subroutine_name)s)
     %(selfdot)s_arrays[array_handle] = %(el_name)s
 return %(el_name)s""" % dct)
         self.dedent()
         self.write()
         if not isinstance(node, ft.Module) or not self.make_package:
             self.write("@%(el_name)s.setter" % dct)
-        self.write("""def %(el_name_set)s(%(selfcomma)s%(el_name)s):
+        if dct['selfdot'] :
+            self.write("""def %(el_name_set)s(%(selfcomma)s%(el_name)s):
     %(selfdot)s%(el_name)s[...] = %(el_name)s
+""" % dct)
+        else :
+            self.write("""def %(el_name_set)s(%(selfcomma)s%(el_name)s):
+    globals()['%(selfdot)s%(el_name)s'][...] = %(el_name)s
 """ % dct)
         self.write()
 
@@ -727,7 +769,7 @@ return %(el_name)s""" % dct)
                    parent='self',
                    doc=format_doc_string(el),
                    cls_name=cls_name,
-                   cls_mod_name=cls_mod_name.title() + '.')
+                   cls_mod_name=normalise_class_name(cls_mod_name, self.class_names) + '.')
 
         if isinstance(node, ft.Module):
             dct['parent'] = 'f90wrap.runtime.empty_type'
@@ -743,11 +785,87 @@ return %(el_name)s""" % dct)
         self.indent()
         if isinstance(node, ft.Module) and self.make_package:
             self.write('global %(el_name)s' % dct)
+
+        dct['getitem_name'] = shorten_long_name('%(prefix)s%(mod_name)s__array_getitem__%(el_name)s' % dct)
+        dct['setitem_name'] = shorten_long_name('%(prefix)s%(mod_name)s__array_setitem__%(el_name)s' % dct)
+        dct['len_name'] = shorten_long_name('%(prefix)s%(mod_name)s__array_len__%(el_name)s' % dct)
+
         self.write('''%(selfdot)s%(el_name)s = f90wrap.runtime.FortranDerivedTypeArray(%(parent)s,
-                                %(f90_mod_name)s.%(prefix)s%(mod_name)s__array_getitem__%(el_name)s,
-                                %(f90_mod_name)s.%(prefix)s%(mod_name)s__array_setitem__%(el_name)s,
-                                %(f90_mod_name)s.%(prefix)s%(mod_name)s__array_len__%(el_name)s,
+                                %(f90_mod_name)s.%(getitem_name)s,
+                                %(f90_mod_name)s.%(setitem_name)s,
+                                %(f90_mod_name)s.%(len_name)s,
                                 %(doc)s, %(cls_mod_name)s%(cls_name)s)''' % dct)
         self.write('return %(selfdot)s%(el_name)s' % dct)
         self.dedent()
         self.write()
+
+    def write_type_checks(self, node):
+        # This adds tests that checks data types and dimensions
+        # to ensure either the correct version of an interface is used
+        # either an exception is returned
+        for arg in node.arguments:
+            if 'optional' not in arg.attributes:
+                ft_array_dim_list = list(filter(lambda x: x.startswith("dimension"),
+                        arg.attributes))
+                if ft_array_dim_list:
+                    if ':' in ft_array_dim_list[0]:
+                        ft_array_dim = ft_array_dim_list[0].count(',')+1
+                    else:
+                        ft_array_dim = -1
+                else:
+                    ft_array_dim = 0
+
+                # Checks for derived types
+                if (arg.type.startswith('type') or arg.type.startswith('class')):
+                    cls_mod_name = self.types[ft.strip_type(arg.type)].mod_name
+                    cls_mod_name = self.py_mod_names.get(cls_mod_name, cls_mod_name)
+
+                    cls_name = normalise_class_name(ft.strip_type(arg.type), self.class_names)
+                    self.write('if not isinstance({0}, {1}.{2}) :'\
+                        .format(arg.py_name, cls_mod_name, cls_name) )
+                    self.indent()
+                    self.write('raise TypeError')
+                    self.dedent()
+
+                    if self.make_package:
+                        self.imports.add((self.py_mod_name, cls_mod_name))
+                else:
+                    # Checks for Numpy array dimension and types
+                    # It will fail for types that are not in the kind map
+                    # Good enough for now if it works on standrad types
+                    try:
+                        array_type=ft.fortran_array_type(arg.type, self.kind_map)
+                    except RuntimeError:
+                        continue
+
+                    py_type = ft.f2py_type(arg.type)
+
+                    # bool are ignored because fortran logical are mapped to integers
+                    if py_type not in  ['bool']:
+                        self.write('if isinstance({0},(numpy.ndarray, numpy.generic)):'\
+                                  .format(arg.py_name))
+                        self.indent()
+                        if ft_array_dim == -1:
+                            self.write('if {0}.dtype.num != {1}:'\
+                                    .format(arg.py_name, array_type))
+                        else:
+                            self.write('if {0}.ndim != {1} or {0}.dtype.num != {2}:'\
+                                    .format(arg.py_name, str(ft_array_dim), array_type))
+
+                        self.indent()
+                        self.write('raise TypeError')
+                        self.dedent()
+                        self.dedent()
+                        if ft_array_dim == 0:
+                            # Do not write checks for unknown types
+                            if py_type not in  ['unknown']:
+                                self.write('elif not isinstance({0},{1}):'\
+                                          .format(arg.py_name,py_type))
+                                self.indent()
+                                self.write('raise TypeError')
+                                self.dedent()
+                        else:
+                            self.write('else:')
+                            self.indent()
+                            self.write('raise TypeError')
+                            self.dedent()

@@ -64,7 +64,7 @@ This is free software, and you are welcome to redistribute it under
 certain conditions. See LICENCE for details.
 """)
 
-if __name__ == '__main__':
+def main():
 
     all_args=sys.argv[1:]
 
@@ -120,3 +120,7 @@ if __name__ == '__main__':
     if do_latex:
         write_latex(root, doc_title, doc_author, do_short_doc,
                     intro, do_header, out_stream)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
