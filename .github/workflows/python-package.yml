@@ -5,9 +5,9 @@ name: Python package
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, pr160_2023 ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, pr160_2023 ]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
