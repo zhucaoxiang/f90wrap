@@ -17,7 +17,7 @@
 
 /*   You should have received a copy of the GNU Lesser General Public License */
 /*   along with f90wrap. If not, see <http://www.gnu.org/licenses/>. */
- 
+
 /*   If you would like to license the source code under different terms, */
 /*   please contact James Kermode, james.kermode@gmail.com */
 
@@ -73,7 +73,7 @@ get_array(PyObject *self, PyObject *args)
     PyErr_SetString(PyExc_TypeError, "2nd argument `arrayfunc' is not a fortran object");
     goto fail;
   }
-  
+
   if (arrayfunc_capi->defs[0].rank==-1) {/* is Arrayfunc_Capirtran routine */
     if ((arrayfunc_capi->defs[0].func==NULL)) {
       PyErr_Format(PyExc_RuntimeError, "no function to call");
@@ -89,7 +89,7 @@ get_array(PyObject *self, PyObject *args)
   }
 
   /* Call arrayfunc_capi routine */
-  if (key == NULL) 
+  if (key == NULL)
     ((arrayfunc_t)(arrayfunc_capi->defs[0].data))(this, &nd, &typenum, dim_temp, &data);
   else
     ((arrayfunc_key_t)(arrayfunc_capi->defs[0].data))(this, key, &nd, &typenum, dim_temp, &data, strlen(key));
@@ -106,7 +106,7 @@ get_array(PyObject *self, PyObject *args)
 
   /* Construct array */
   descr = PyArray_DescrNewFromType(typenum);
-  array = (PyArrayObject*) PyArray_NewFromDescr(&PyArray_Type, descr, nd, dimensions, NULL, 
+  array = (PyArrayObject*) PyArray_NewFromDescr(&PyArray_Type, descr, nd, dimensions, NULL,
                                                 data, NPY_FORTRAN | NPY_WRITEABLE | NPY_ALIGNED, NULL);
   free(dimensions);
   if((PyObject *)capi_this_tmp!=this_capi) {
@@ -124,12 +124,12 @@ get_array(PyObject *self, PyObject *args)
 
 
 static PyMethodDef arraydata_methods[] = {
-  {"get_array", get_array, METH_VARARGS, 
+  {"get_array", get_array, METH_VARARGS,
    "Make an array from integer(sizeof_fortran_t) array containing reference to derived type object,\n and fortran array function.\n\get_array(sizeof_fortran_t, fpointer,array_fobj[,key]) -> array"},
   {NULL, NULL}
 };
 
-static char arraydata_doc[] = 
+static char arraydata_doc[] =
   "Extension module to create numpy arrays which access existing data at a given memory location";
 
 
@@ -168,7 +168,11 @@ PyMODINIT_FUNC
 PyInit_arraydata(void)
 {
   PyObject *mod = PyModule_Create(&arraydataModuleDef);
+#if PY_MINOR_VERSION >= 11 // https://peps.python.org/pep-0674/#port-c-extensions-to-python-3-11
+  Py_SET_TYPE(&PyFortran_Type, &PyType_Type);
+#else
   Py_TYPE(&PyFortran_Type) = &PyType_Type;
+#endif
 
   import_array();
   return mod;
